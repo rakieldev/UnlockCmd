@@ -21,6 +21,7 @@ unlocksnd = 0,0,0
 hidden = 0
 keep = 0
 anim = 0,0, 0,0, -1
+storyboard = 
 ]]
 
     local file = io.open(path, "r")
@@ -99,6 +100,9 @@ anim = 0,0, 0,0, -1
         end
         if charData.anim == nil or #charData.anim == 0 then
             charData.anim = {"0,0, 0,0, -1"}
+        end
+        if charData.storyboard == nil then
+            charData.storyboard = ""
         end
     end
     return config
@@ -181,7 +185,6 @@ function saveUnlockConfig(path, config)
             table.insert(updatedContent, line)
         end
     end
-    
     -- Writes the updated content back to the file
     file = io.open(path, "w")
     if not file then
@@ -199,8 +202,7 @@ end
 --------------------------------------------------------
 --- Sprite/Anim rendering functions
 --------------------------------------------------------
-
-function DrawLockedCell()
+function drawLockedCell()
     -- Draw cell art
     for row = 1, motif.select_info.rows do
         for col = 1, motif.select_info.columns do
@@ -224,27 +226,27 @@ function DrawLockedCell()
                         end
                     end
                     if charAnim and not hidden then
-                        -- main.f_animPosDraw(
-                        --     motif.select_info.cell_bg_data,
-                        --     motif.select_info.pos[1] + t.x,
-                        --     motif.select_info.pos[2] + t.y,
-                        --     (motif.select_info['cell_' .. col .. '_' .. row .. '_facing'] or motif.select_info.cell_bg_facing)
-                        -- )
-                    -- Apply system.def scale
-                        animSetScale(
-                            charAnim,
-                            motif.select_info.portrait_scale[1] / (main.SP_Viewport43[3] / main.SP_Localcoord[1]),
-                            motif.select_info.portrait_scale[2] / (main.SP_Viewport43[3] / main.SP_Localcoord[1]),
-                            false
-                        )
-                        --animUpdate(charAnim)
+                        if motif.select_info.showemptyboxes == 0 then
+                            main.f_animPosDraw(
+                                motif.select_info.cell_bg_data,
+                                motif.select_info.pos[1] + t.x,
+                                motif.select_info.pos[2] + t.y,
+                                (motif.select_info['cell_' .. col .. '_' .. row .. '_facing'] or motif.select_info.cell_bg_facing)
+                            )
+                        end
                         main.f_animPosDraw(
                             charAnim,
                             motif.select_info.pos[1] + t.x + motif.select_info.portrait_offset[1],
                             motif.select_info.pos[2] + t.y + motif.select_info.portrait_offset[2],
                             (motif.select_info['cell_' .. col .. '_' .. row .. '_facing'] or motif.select_info.cell_random_facing)
                         )
-                    elseif not hidden then
+                        animSetScale(
+                            charAnim,
+                            motif.select_info.portrait_scale[1] / (motifViewport43(2) / motifLocalcoord(0)),
+                            motif.select_info.portrait_scale[2] / (motifViewport43(2) / motifLocalcoord(0)),
+                            false
+                        )
+                    elseif not hidden then -- fallback to the screenpack default '?'
                         main.f_animPosDraw(
                             motif.select_info.cell_random_data,
                             motif.select_info.pos[1] + t.x + motif.select_info.portrait_offset[1],
@@ -266,18 +268,15 @@ function DrawLockedCell()
                 local t = start.t_grid[y + 1][x + 1]
                 --render only if cell is not hidden
                 if t.hidden ~= 1 and t.hidden ~= 2 then
-                    start.f_drawCursor(v.pn, x, y, '_cursor_done')
+                    start.f_drawCursor(v.pn, x, y, '_cursor_done', true)
                 end
             end
         end
-    end
-
-    for side = 1, 2 do
        if not start.p[side].selEnd then
             --for each player with active controls
             for k, v in ipairs(start.p[side].t_selCmd) do
                 if v.selectState < 4 and start.f_selGrid(start.c[v.player].cell + 1).hidden ~= 1 and not start.c[v.player].blink then
-                    start.f_drawCursor(v.player, start.c[v.player].selX, start.c[v.player].selY, '_cursor_active')
+                    start.f_drawCursor(v.player, start.c[v.player].selX, start.c[v.player].selY, '_cursor_active', false)
                 end
             end
         end
@@ -287,21 +286,25 @@ end
 --------------------------------------------------------
 --- Hooks and command check code
 --------------------------------------------------------
-
 function checkcommand()
     for p = 1, #main.t_players do
         for _, charData in ipairs(unlockConfig.chars) do
             if not charData.unlocked then
                 main.f_commandAdd("hold_start", "/s", 1, 1)
-                main.f_commandAdd(charData.name, charData.command, 150, 1)               
-                local commandExecuted = commandGetState(main.t_cmd[p], charData.name)               
+                main.f_commandAdd(charData.name, charData.command, 150, 1)
+                local commandExecuted = commandGetState(main.t_cmd[p], charData.name)
                 if charData.holdstart == 1 then
                     commandExecuted = commandExecuted and commandGetState(main.t_cmd[p], "hold_start")
-                end               
+                end
                 if commandExecuted then
                     charData.unlocked = true
                     main.f_unlock(true)
                     playUnlockSound(charData)
+                    start.needUpdateDrawList = true
+                    if charData.storyboard ~= nil and charData.storyboard ~= "" then
+                    local path = charData.storyboard
+                        launchStoryboard(path)
+                    end
                     if charData.keep == 1 then
                         -- Save the .def
                         saveUnlockConfig('external/mods/unlockCmd/unlockCmdConfig.def', unlockConfig)
@@ -314,11 +317,7 @@ function checkcommand()
             end
         end
     end
-    if (not start.p[1].teamEnd or not start.p[2].teamEnd or not start.p[1].selEnd or not start.p[2].selEnd) and main.stageMenu then
-        DrawLockedCell()
-    elseif not main.stageMenu then -- Some screenpacks use the stage select above the cells. Since we don't yet have precise control over specific layers, 
-    DrawLockedCell()               -- it's better to disable the mod locked portraits during stage select to avoid issues.
-    end
+    drawLockedCell()
 end
 
 hook.add("start.f_selectScreen", "unlockchar", checkcommand)
