@@ -33,6 +33,8 @@ A module for Ikemen GO that enables configuring char unlock commands and customi
 - anim:
   - The sprite or anim to be used as the char's portrait when locked. If omitted, the default random select icon from the portrait will be used, this uses the standard .air syntax, allowing you to specify a single sprite or define an anim.  
    You must add your sprites to unlockCmdSprites.sff.  
+- storyboard:
+  - Path to the storyboard to play when the char is unlocked
 
 # Example
   ```ini
@@ -45,6 +47,7 @@ unlocksnd = 1,0,100
 hidden = 0
 keep = 0
 anim = 1,0, 0,0, -1
+storyboard = chars/suavedud/unlock.def
  ```
 # Select.def
 
