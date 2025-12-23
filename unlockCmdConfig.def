@@ -1,6 +1,9 @@
 ; -- unlockConfig.def parameters:
 ; -- * name: 
-;      The name of the char to be unlocked with the command. It must match exactly how it is written in select.def, e.g., kfm, Elecbyte/kfm.
+;      The name of the command to be used to unlock a char.
+
+; -- * link or charpath:
+;      The char path, exactly the same as it’s defined in select.def.
 
 ; -- * command: 
 ;      Write here the command to unlock the char (in the same format as commands are written in the char's CMD file), e.g., ~F,F,F,B,B,s.
@@ -22,16 +25,22 @@
 
 ; -- * anim: 
 ;      Group and index of the sprite to be used as the char's portrait when locked. If omitted, the default random select icon from the portrait will be used.
-; --   This uses the standard .air syntax, allowing you to specify a single sprite or define an anim, e.g.:
-; --   anim = 1,0, 0,0, 10
-; --          1,1, 0,0, 10
-; --   You must add your sprites to unlockCmdSprites.sff.
-; --
-; -- EXAMPLE (in select.def):
-; -- kfmZ, hidden = 2, unlock = UnlockCmd("kfmZ")
+;      This uses the standard .air syntax, allowing you to specify a single sprite or define an anim, e.g.:
+;      anim = 1,0, 0,0, 10
+;             1,1, 0,0, 10
+;      You must add your sprites to unlockCmdSprites.sff.
+
+; -- * unlockanim:
+;      The sprite or animation used as the char’s portrait when being unlocked. If omitted, it won’t be used. This follows the standard .air syntax, allowing you to specify either a single sprite or define an animation. 
+;      If an animation is defined, the character will be unlocked at the end of the animation. Storyborads will be played after the unlock animation.
+;      You must add your sprites to unlockCmdSprites.sff.
+
+;    EXAMPLE (in select.def):
+;    suavedude/suave.def, hidden = 2, unlock = UnlockCmd("SuaveUnlockCMD")
 
 [UnlockConfig]
-name = SuaveDude
+name = SuaveUnlockCMD
+link = SuaveDude/suave.def
 command = ~F,F,F,B,B,B,s
 holdstart = 0
 unlocked = false
@@ -39,3 +48,9 @@ unlocksnd = 1,0,100
 hidden = 0
 keep = 0
 anim = 1,0, 0,0, -1
+unlockanim = 
+1,1, 0,0, 7
+1,2, 0,0, 7
+1,3, 0,0, 7
+1,4, 0,0, 7
+storyboard = chars/SuaveDude/unlock.def
