@@ -267,15 +267,49 @@ end
 --------------------------------------------------------
 --- Sprite/Anim rendering functions
 --------------------------------------------------------
-local function getCellFacing(default, col, row)
-	local cell = motif.select_info.cell[col .. '-' .. row]
-	if cell ~= nil and cell.facing ~= 0 then
-		return cell.facing
-	end
-	return default
+local function drawWithCellTransforms(anim, x, y, col, row, defaultParams)
+    if not anim then 
+        return 
+    end
+    -- inherit cell transformation
+    local cellScale = getCellTransform(col, row, "scale", nil)
+    animSetPos(anim, 0, 0)
+    animSetFacing(anim, getCellFacing(defaultParams.facing, col, row))
+    animSetAngle(anim, getCellTransform(col, row, "angle", 0))
+    animSetXShear(anim, getCellTransform(col, row, "xshear", 0))
+    animSetXAngle(anim, getCellTransform(col, row, "xangle", 0))
+    animSetYAngle(anim, getCellTransform(col, row, "yangle", 0))
+    animSetProjection(anim, getCellTransform(col, row, "projection", 0))
+    animSetfLength(anim, getCellTransform(col, row, "focallength", 0))
+
+    if defaultParams.isPortrait then
+        local resFix = motif.info.localcoord[1] / 320
+        local finalScale = cellScale or defaultParams.scale -- Uses override or the scale defined in the .def
+        animSetScale(anim, finalScale[1] * resFix, finalScale[2] * resFix)
+    else
+        local finalScale = cellScale or defaultParams.scale
+        animSetScale(anim, finalScale[1], finalScale[2])
+    end
+    animUpdate(anim)
+    main.f_animPosDraw(anim, x, y, cellFacing)
 end
 
 function drawLockedCell()
+    local portraitDefaults = {
+        scale = motif.select_info.portrait.scale,
+        facing = motif.select_info.portrait.facing,
+        isPortrait = true
+    }
+    local motifDefaults = {
+        scale = motif.select_info.cell.random.scale or {1, 1},
+        facing = motif.select_info.cell.random.facing or 1,
+        isPortrait = false
+    }
+    local bgDefaults = {
+        scale = motif.select_info.cell.bg.scale or {1, 1},
+        facing = motif.select_info.cell.bg.facing,
+        isPortrait = false
+    }
     for row = 1, motif.select_info.rows do
         for col = 1, motif.select_info.columns do
             local t = start.t_grid[row][col]
@@ -285,61 +319,35 @@ function drawLockedCell()
                 local configName = pathMap[t.char] or t.char
                 local targetCharData = nil
                 for _, cd in ipairs(unlockConfig.chars) do
-                    if cd.name == configName then 
-                        targetCharData = cd 
-                        break 
-                    end
+                    if cd.name == configName then targetCharData = cd; break end
                 end
+                local c, r = col - 1, row - 1
+                local cOffset = getCellOffset(c, r)
+                -- Pos
+                local bgX = motif.select_info.pos[1] + t.x
+                local bgY = motif.select_info.pos[2] + t.y
+                local pX = bgX + motif.select_info.portrait.offset[1] + cOffset[1]
+                local pY = bgY + motif.select_info.portrait.offset[2] + cOffset[2]
 
                 if targetCharData then
-
-                    local isBuffer = (targetCharData.unlockTimer or 0) < 0
-                    
-                    if t.hidden == 2 or isBuffer then
-                        local isHidden = (targetCharData.hidden == 1)
-                        local pX = motif.select_info.pos[1] + t.x + motif.select_info.portrait.offset[1]
-                        local pY = motif.select_info.pos[2] + t.y + motif.select_info.portrait.offset[2]
-                        local pFacing = getCellFacing(motif.select_info.portrait.facing, col - 1, row - 1)
-
-                        if targetCharData.unlockTimer and targetCharData.unlockTimer ~= 0 then
+                    if t.hidden == 2 or (targetCharData.unlockTimer or 0) < 0 then
+                        -- Draw BG if showemptyboxes = 0
+                        if not motif.select_info.showemptyboxes then
+                            drawWithCellTransforms(motif.select_info.cell.bg.AnimData, bgX, bgY, c, r, bgDefaults)
+                        end
+                        -- Draw custom locked portrait
+                        local charAnim = charAnims[configName]
+                        if charAnim then
+                            drawWithCellTransforms(charAnim, pX, pY, c, r, portraitDefaults)
+                        else
+                            -- Default '?' icon
+                            drawWithCellTransforms(motif.select_info.cell.random.AnimData, pX, pY, c, r, motifDefaults)
+                        end
+                        -- Draw unlock anim
+                        if (targetCharData.unlockTimer or 0) ~= 0 then
                             local uAnim = unlockAnims[configName]
-                            local charAnim = charAnims[configName]
-
-                            if targetCharData.unlockTimer > 0 and uAnim then
-                                main.f_animPosDraw(uAnim, pX, pY, pFacing)
-                            else
-                                if charAnim then
-                                    main.f_animPosDraw(charAnim, pX, pY, pFacing)
-                                else
-                                    main.f_animPosDraw(motif.select_info.cell.random.AnimData, pX, pY, pFacing)
-                                end
-                                if uAnim then
-                                    main.f_animPosDraw(uAnim, pX, pY, pFacing)
-                                end
-                            end
-                        -- Static frame
-                        elseif not targetCharData.unlocked then
-                            if not isHidden then
-                                -- Cell BG
-                                if motif.select_info.showemptyboxes then
-                                    main.f_animPosDraw(
-                                        motif.select_info.cell.bg.AnimData,
-                                        motif.select_info.pos[1] + t.x,
-                                        motif.select_info.pos[2] + t.y,
-                                        getCellFacing(motif.select_info.cell.bg.facing, col - 1, row - 1)
-                                    )
-                                end
-                                -- Custom Sprite, Anim or default '?'
-                                local charAnim = charAnims[configName]
-                                if charAnim then
-                                    main.f_animPosDraw(charAnim, pX, pY, pFacing)
-                                else
-                                    main.f_animPosDraw(
-                                        motif.select_info.cell.random.AnimData,
-                                        pX, pY,
-                                        getCellFacing(motif.select_info.cell.random.facing, col - 1, row - 1)
-                                    )
-                                end
+                            if uAnim then
+                                drawWithCellTransforms(uAnim, pX, pY, c, r, portraitDefaults)
                             end
                         end
                     end
@@ -347,6 +355,20 @@ function drawLockedCell()
             end
         end
     end
+    -- Reset
+    local function resetGlobalAnim(anim, defScale)
+        if not anim then return end
+        animSetXShear(anim, 0)
+        animSetAngle(anim, 0)
+        animSetXAngle(anim, 0)
+        animSetYAngle(anim, 0)
+        animSetProjection(anim, 0)
+        animSetfLength(anim, 0)
+        animSetScale(anim, defScale[1], defScale[2])
+        animUpdate(anim)
+    end
+    resetGlobalAnim(motif.select_info.cell.bg.AnimData, motif.select_info.cell.bg.scale)
+    resetGlobalAnim(motif.select_info.cell.random.AnimData, motif.select_info.cell.random.scale)
 end
 
 --------------------------------------------------------
