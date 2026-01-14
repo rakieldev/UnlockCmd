@@ -10,8 +10,9 @@ A module for Ikemen GO that enables configuring char unlock commands and customi
 
 1. Extract archive content into "./external/mods/unlockCmd" directory
 2. Add your command and its settings to the unlockCmdConfig.def.
-3. Add sprites to unlockCmdSprites.sff, as required.
-5. Add sounds to unlockCmdSounds.snd, as required.
+3. Add your sprites to unlockCmdSprites.sff, as required.
+4. Add your animations to unlockCmdAnims.air, as required.
+5. Add your sounds to unlockCmdSounds.snd, as required.
 6. Link the command to the char you want it to unlock in the select.def
 
 # unlockCmdConfig.def parameters
@@ -33,10 +34,10 @@ A module for Ikemen GO that enables configuring char unlock commands and customi
 - keep:
   - If true, will keep the char unlocked after closing the game, valid values are 1 (true) or 0 (false).
 - anim:
-  - The sprite or anim to be used as the char's portrait when locked. If omitted, the default random select icon from the portrait will be used, this uses the standard .air syntax, allowing you to specify a single sprite or define an anim.
+  - Anim number to be used as the char's portrait when locked. If omitted, the default random select icon from the module will be used. syntax, This uses the animations defined in the unlockCmdAnims.air
   You must add your sprites to unlockCmdSprites.sff. 
 - unlockanim:
-  - The sprite or animation used as the char’s portrait when being unlocked. If omitted, it won’t be used. This follows the standard .air syntax, allowing you to specify either a single sprite or define an animation. If an animation is defined, the character will be unlocked at the end of the animation. Storyborads will be played after the unlock animation.
+  - The sprite or animation used as the char’s portrait when being unlocked. If omitted, it won’t be used. This uses an animation from unlockCmdAnims.air. If an animation is defined, the character will be unlocked at the end of the animation. Storyborads will be played after the unlock animation. 
   You must add your sprites to unlockCmdSprites.sff. 
 - storyboard:
   - Path to the storyboard to play when the char is unlocked
@@ -52,12 +53,8 @@ unlocked = false
 unlocksnd = 1,0,100
 hidden = 0
 keep = 0
-anim = 1,0, 0,0, -1
-unlockanim = 
-1,1, 0,0, 7
-1,2, 0,0, 7
-1,3, 0,0, 7
-1,4, 0,0, 7
+anim = 100
+unlockanim = 110
 storyboard = chars/SuaveDude/unlock.def
  ```
 # Select.def

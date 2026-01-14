@@ -20,7 +20,8 @@ unlocked = false
 unlocksnd = 0,0,0
 hidden = 0
 keep = 0
-anim = 0,0, 0,0, -1
+anim = 
+unlockanim = 
 link = 
 storyboard = 
 ]]
@@ -37,10 +38,6 @@ storyboard =
     -- Read the .def file
     local config = {chars = {}}
     local section = nil
-    local isAnimSection = false
-    local animLines = {}
-    local isUnlockAnimSection = false
-    local unlockAnimLines = {}
 
     local content = main.f_fileRead(path)
     content = content:gsub('([^\r\n;]*)%s*;[^\r\n]*', '%1')
@@ -49,45 +46,21 @@ storyboard =
         local lineCase = line:lower()
 
         if lineCase:match('^%s*%[unlockconfig%]%s*$') then
-            if section then
-                if #animLines > 0 then section.anim = animLines end
-                if #unlockAnimLines > 0 then section.unlockanim = unlockAnimLines end
-            end
             section = {}
             table.insert(config.chars, section)
-            isAnimSection = false
-            isUnlockAnimSection = false
-            animLines = {}
-            unlockAnimLines = {}
         elseif section then
             local param, value = line:match('^%s*(.-)%s*=%s*(.-)%s*$')
             if param and value then
-
-                if isAnimSection and #animLines > 0 then
-                    section.anim = animLines
-                    animLines = {}
-                end
-
-                if isUnlockAnimSection and #unlockAnimLines > 0 then
-                    section.unlockanim = unlockAnimLines
-                    unlockAnimLines = {}
-                end
-
-                isAnimSection = false
-                isUnlockAnimSection = false
-                if param:match('^anim$') then
-                    isAnimSection = true
-                    table.insert(animLines, value)
-                elseif param:match('^unlockanim$') then
-                    isUnlockAnimSection = true
-                    table.insert(unlockAnimLines, value)
+                param = param:lower()
+                if param:match('^anim$') or param:match('^unlockanim$') then
+                    section[param] = tonumber(value) or 0
                 elseif param:match('^unlocksnd$') then
                     local values = {}
                     for num in value:gmatch('[^,]+') do
                         table.insert(values, tonumber(num) or num)
                     end
                     section[param] = values
-                elseif param:match('^link$') or param:match('^charpath$') then 
+                elseif param:match('^link$') or param:match('^charpath$') then
                     section.link = value
                 elseif tonumber(value) then
                     section[param] = tonumber(value)
@@ -96,10 +69,6 @@ storyboard =
                 else
                     section[param] = value
                 end
-            elseif isAnimSection then
-                table.insert(animLines, line:match('^%s*(.-)%s*$'))
-            elseif isUnlockAnimSection then -- [NOVO]
-                table.insert(unlockAnimLines, line:match('^%s*(.-)%s*$'))
             end
         end
     end
@@ -121,8 +90,8 @@ storyboard =
         if charData.keep == nil then
             charData.keep = 0
         end
-        if charData.anim == nil or #charData.anim == 0 then
-            charData.anim = {"0,0, 0,0, -1"}
+        if charData.anim == nil then
+            charData.anim = 0
         end
         if charData.storyboard == nil then
             charData.storyboard = ""
@@ -155,37 +124,31 @@ end
 local charAnims = {}
 local unlockAnims = {}
 local globalSff = sffNew('external/mods/unlockCmd/unlockCmdSprites.sff')
+local globalAirTable = nil
 
-function createAnim(charData)
-    if not charData.anim or #charData.anim == 0 or not globalSff then return nil end
-    local a = animNew(globalSff, table.concat(charData.anim, "\n"))
-
-    if a then
-        local params = motif.select_info.portrait
-        animSetLocalcoord(a, motif.info.localcoord[1], motif.info.localcoord[2])
-        animSetLayerno(a, 0)
-        local pScale = charData.portraitscale or 1.0
-        local referenceLocalcoord = 320
-        animSetScale(
-            a,
-            params.scale[1] * pScale * motif.info.localcoord[1] / referenceLocalcoord,
-            params.scale[2] * pScale * motif.info.localcoord[1] / referenceLocalcoord
-        )
-        animUpdate(a)
-    end
-    return a
+if main.f_fileExists('external/mods/unlockCmd/unlockCmdAnims.air') then
+    globalAirTable = loadAnimTable('external/mods/unlockCmd/unlockCmdAnims.air', globalSff)
+else
+    print("ERROR: unlockCmdAnims.air not found!")
+    globalAirTable = {} -- Prevines crash
 end
 
-function createUnlockAnim(charData)
-    if not charData.unlockanim or #charData.unlockanim == 0 or not globalSff then return nil end
-    local a = animNew(globalSff, table.concat(charData.unlockanim, "\n"))
-    
+-- create anims from air file
+function createAnimFromID(animID, charData, isPortraitContext)
+    if not animID or animID == 0 or not globalAirTable[animID] then 
+        return nil 
+    end
+
+    local a = animNew(globalSff, globalAirTable[animID])
+
     if a then
         local params = motif.select_info.portrait
         animSetLocalcoord(a, motif.info.localcoord[1], motif.info.localcoord[2])
         animSetLayerno(a, 0)
         local pScale = charData.portraitscale or 1.0
         local referenceLocalcoord = 320
+        
+        -- Apply scale if isPortraitContext
         animSetScale(
             a,
             params.scale[1] * pScale * motif.info.localcoord[1] / referenceLocalcoord,
@@ -229,8 +192,6 @@ function saveUnlockConfig(path, config)
                 table.insert(updatedContent, "[UnlockConfig]")
                 for key, value in pairs(config.chars[charIndex]) do
                     if key == "unlocksnd" and type(value) == "table" then
-                        table.insert(updatedContent, string.format("%s = %s", key, table.concat(value, ",")))
-                    elseif key == "anim" and type(value) == "table" then
                         table.insert(updatedContent, string.format("%s = %s", key, table.concat(value, ",")))
                     elseif key == "link" then
                         table.insert(updatedContent, string.format("%s = %s", key, value))
@@ -280,7 +241,7 @@ local function drawWithCellTransforms(anim, x, y, col, row, defaultParams)
     animSetXAngle(anim, getCellTransform(col, row, "xangle", 0))
     animSetYAngle(anim, getCellTransform(col, row, "yangle", 0))
     animSetProjection(anim, getCellTransform(col, row, "projection", 0))
-    animSetfLength(anim, getCellTransform(col, row, "focallength", 0))
+	animSetFocalLength(anim, getCellTransform(col, row, "focallength", 0))
 
     if defaultParams.isPortrait then
         local resFix = motif.info.localcoord[1] / 320
@@ -314,8 +275,7 @@ function drawLockedCell()
         for col = 1, motif.select_info.columns do
             local t = start.t_grid[row][col]
             if t.skip ~= 1 then
-                
-                -- Locate the mod data for this cell
+             -- Locate the mod data for this cell
                 local configName = pathMap[t.char] or t.char
                 local targetCharData = nil
                 for _, cd in ipairs(unlockConfig.chars) do
@@ -363,7 +323,7 @@ function drawLockedCell()
         animSetXAngle(anim, 0)
         animSetYAngle(anim, 0)
         animSetProjection(anim, 0)
-        animSetfLength(anim, 0)
+        animSetFocalLength(anim, 0)
         animSetScale(anim, defScale[1], defScale[2])
         animUpdate(anim)
     end
@@ -377,13 +337,14 @@ end
 function checkcommand()
     -- Timer
     for _, charData in ipairs(unlockConfig.chars) do
-        
+        -- Init anims
         if not charAnims[charData.name] and charData.anim then
-            charAnims[charData.name] = createAnim(charData)
+            charAnims[charData.name] = createAnimFromID(charData.anim, charData, true)
         end
         if not unlockAnims[charData.name] and charData.unlockanim then
-            unlockAnims[charData.name] = createUnlockAnim(charData)
+            unlockAnims[charData.name] = createAnimFromID(charData.unlockanim, charData, true)
         end
+
         if charData.unlockTimer then
             if charData.unlockTimer > 0 then
                 charData.unlockTimer = charData.unlockTimer - 1
