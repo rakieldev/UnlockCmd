@@ -1,6 +1,6 @@
 -- UnlockCmd: Unlock chars via commands in the select screen.
--- Version: 1.4
--- Date: 01/14/2026
+-- Version: 1.4.1
+-- Date: 02/04/2026
 -- Author: Rakíel
 -- Compatible with: Ikemen GO 1.0
 -- Description: This mod lets you create special commands to unlock chars in the select screen. These commands are defined in the unlockCmdConfig.def file.
@@ -374,7 +374,7 @@ function checkcommand()
     end
 
     -- Check Player Inputs
-    for p = 1, #main.t_players do
+    for p = 1, gameOption('Config.Players') do
         for _, charData in ipairs(unlockConfig.chars) do
             
             if charData.unlocked or (charData.unlockTimer and charData.unlockTimer > 0) then
