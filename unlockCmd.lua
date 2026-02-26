@@ -1,6 +1,6 @@
 -- UnlockCmd: Unlock chars via commands in the select screen.
--- Version: 1.4.1
--- Date: 02/10/2026
+-- Version: 1.4.2
+-- Date: 02/26/2026
 -- Author: Rakíel
 -- Compatible with: Ikemen GO 1.0
 -- Description: This mod lets you create special commands to unlock chars in the select screen. These commands are defined in the unlockCmdConfig.def file.
@@ -275,19 +275,18 @@ function drawLockedCell()
 		for col = 1, motif.select_info.columns do
 			local t = start.t_grid[row][col]
 			if t.skip ~= 1 then
-			 -- Locate the mod data for this cell
+				-- Locate the mod data for this cell
 				local configName = pathMap[t.char] or t.char
 				local targetCharData = nil
 				for _, cd in ipairs(unlockConfig.chars) do
 					if cd.name == configName then targetCharData = cd; break end
 				end
 				local c, r = col - 1, row - 1
-				local cOffset = getCellOffset(c, r)
 				-- Pos
 				local bgX = motif.select_info.pos[1] + t.x
 				local bgY = motif.select_info.pos[2] + t.y
-				local pX = bgX + motif.select_info.portrait.offset[1] + cOffset[1]
-				local pY = bgY + motif.select_info.portrait.offset[2] + cOffset[2]
+				local pX = bgX + motif.select_info.portrait.offset[1]
+				local pY = bgY + motif.select_info.portrait.offset[2]
 
 				if targetCharData then
 					if t.hidden == 2 or (targetCharData.unlockTimer or 0) < 0 then
