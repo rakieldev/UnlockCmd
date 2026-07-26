@@ -379,12 +379,12 @@ function checkcommand()
 			if charData.unlocked or (charData.unlockTimer and charData.unlockTimer > 0) then
 				goto continue
 			end
-			main.f_commandAdd("hold_start", "/s", 1, 1)
-			main.f_commandAdd(charData.name, charData.command, 150, 1)
+			commandAdd("hold_start", "/s", 1, 1)
+			commandAdd(charData.name, charData.command, 150, 1)
 			
-			local commandExecuted = commandGetState(main.t_cmd[p], charData.name)
+			local commandExecuted = commandGetState(p, charData.name)
 			if charData.holdstart == 1 then
-				commandExecuted = commandExecuted and commandGetState(main.t_cmd[p], "hold_start")
+				commandExecuted = commandExecuted and commandGetState(p, "hold_start")
 			end
 
 			if commandExecuted then
