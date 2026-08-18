@@ -1,123 +1,42 @@
 -- UnlockCmd: Unlock chars via commands in the select screen.
--- Version: 1.4.2
--- Date: 02/26/2026
+-- Version: 2.0
+-- Date: 18/26/2026
 -- Author: Rakíel
 -- Compatible with: Ikemen GO 1.0
--- Description: This mod lets you create special commands to unlock chars in the select screen. These commands are defined in the unlockCmdConfig.def file.
--- To use this mod, you must declare specific parameters inside the unlockCmdConfig.def file. After that, you can call the commands in the select.def.
+-- Description: This mod lets you create special commands to unlock chars in the select screen. These commands are defined in the config.ini file.
+-- To use this mod, you must declare specific parameters inside the config.ini file. After that, you can call the commands in the select.def.
 
 --------------------------------------------------------
 --- General functions
 --------------------------------------------------------
-function loadUnlockConfig(path) --Load def file which contains data
-	local defaultDef = [[
-; Default Unlock Config
-[UnlockConfig]
-name = 
-command = 
-holdstart = 0
-unlocked = false
-unlocksnd = 0,0,0
-hidden = 0
-keep = 0
-anim = 
-unlockanim = 
-link = 
-storyboard = 
-]]
+function loadUnlockConfig(path) -- Load def file which contains data
+	local ini = loadIni(path, false)
+	local config = {}
 
-	local file = io.open(path, "r")
-	if not file then
-		file = io.open(path, "w")
-		file:write(defaultDef)
-		file:close()
-	else
-		file:close()
-	end
-
-	-- Read the .def file
-	local config = {chars = {}}
-	local section = nil
-
-	local content = main.f_fileRead(path)
-	content = content:gsub('([^\r\n;]*)%s*;[^\r\n]*', '%1')
-	content = content:gsub('\n%s*\n', '\n')
-	for line in content:gmatch('[^\r\n]+') do
-		local lineCase = line:lower()
-
-		if lineCase:match('^%s*%[unlockconfig%]%s*$') then
-			section = {}
-			table.insert(config.chars, section)
-		elseif section then
-			local param, value = line:match('^%s*(.-)%s*=%s*(.-)%s*$')
-			if param and value then
-				param = param:lower()
-				if param:match('^anim$') or param:match('^unlockanim$') then
-					section[param] = tonumber(value) or 0
-				elseif param:match('^unlocksnd$') then
-					local values = {}
-					for num in value:gmatch('[^,]+') do
-						table.insert(values, tonumber(num) or num)
-					end
-					section[param] = values
-				elseif param:match('^link$') or param:match('^charpath$') then
-					section.link = value
-				elseif tonumber(value) then
-					section[param] = tonumber(value)
-				elseif value == "true" or value == "false" then
-					section[param] = value == "true"
-				else
-					section[param] = value
-				end
+	for name, charData in pairs(ini) do
+		if name ~= "DEFAULT" then
+			if type(charData.command) == "table" then
+				charData.command = table.concat(charData.command, ",")
 			end
+			config[name] = charData
 		end
 	end
 
-	-- Default Values
-	for _, charData in ipairs(config.chars) do
-		if charData.hidden == nil then
-			charData.hidden = 0
-		end
-		if charData.holdstart == nil then
-			charData.holdstart = 0
-		end
-		if charData.unlocked == nil then
-			charData.unlocked = false
-		end
-		if charData.unlocksnd == nil then
-			charData.unlocksnd = {0, 0, 0}
-		end
-		if charData.keep == nil then
-			charData.keep = 0
-		end
-		if charData.anim == nil then
-			charData.anim = 0
-		end
-		if charData.storyboard == nil then
-			charData.storyboard = ""
-		end
-	end
-	
 	pathMap = {} -- Init
-	for _, charData in ipairs(config.chars) do
-		if charData.link and charData.link ~= "" then
-			-- Ex: pathMap["SF/EvilKen/EvilKen.def"] = "Super Command"
-			pathMap[charData.link] = charData.name
+	for name, charData in pairs(config) do
+		if charData.charpath and charData.charpath ~= "" then
+			pathMap[charData.charpath] = name
 		end
 	end
-	
+
 	return config
 end
 
-unlockConfig = loadUnlockConfig('external/mods/unlockCmd/unlockCmdConfig.def')
+unlockConfig = loadUnlockConfig('external/mods/unlockCmd/config.ini')
 
 function unlockCmd(name)
-	for _, charData in ipairs(unlockConfig.chars) do
-		if charData.name == name then
-			return charData.unlocked == true
-		end
-	end
-	return false
+	local charData = unlockConfig[name]
+	return charData and charData.unlocked == true or false
 end
 
 -- Tables to store char anims
@@ -169,49 +88,50 @@ end
 
 -- Function to save the def file
 function saveUnlockConfig(path, config)
-	 -- Reads the content of the original file
+	-- Reads the content of the original file
 	local originalContent = {}
 	local file = io.open(path, "r")
-	if file then
-		for line in file:lines() do
-			table.insert(originalContent, line)
-		end
-		file:close()
+
+	if not file then
+		return false
 	end
 
-	 -- Builds a new table for the updated content
+	for line in file:lines() do
+		table.insert(originalContent, line)
+	end
+	file:close()
+
+	-- Builds a new table for the updated content
 	local updatedContent = {}
-	local charIndex = 1
-	local insideSection = false
+	local currentSection = nil
 
 	for _, line in ipairs(originalContent) do
-		local trimmedLine = line:match("^%s*(.-)%s*$")
-		if trimmedLine:match("^%[UnlockConfig%]$") then
-			 -- Detects the start of a new section
-			if config.chars[charIndex] then
-				table.insert(updatedContent, "[UnlockConfig]")
-				for key, value in pairs(config.chars[charIndex]) do
-					if key == "unlocksnd" and type(value) == "table" then
-						table.insert(updatedContent, string.format("%s = %s", key, table.concat(value, ",")))
-					elseif key == "link" then
-						table.insert(updatedContent, string.format("%s = %s", key, value))
-					elseif type(value) == "boolean" then
-						table.insert(updatedContent, string.format("%s = %s", key, value and "true" or "false"))
-					else
-						table.insert(updatedContent, string.format("%s = %s", key, tostring(value)))
-					end
-				end
-				table.insert(updatedContent, "")
-				charIndex = charIndex + 1
-				insideSection = true
-			else
-				insideSection = false
-			end
-		elseif not insideSection then
+		local section = line:match("^%s*%[(.-)%]%s*$")
+
+		if section then
+			currentSection = section
 			table.insert(updatedContent, line)
+		else
+			local param = line:match("^%s*(.-)%s*=")
+
+			if param and param:lower() == "unlocked" and currentSection then
+				local charData = config[currentSection]
+
+				if charData and charData.unlocked ~= nil then
+					local prefix = line:match("^(%s*)")
+					table.insert(
+						updatedContent,
+						prefix .. "unlocked = " .. tostring(charData.unlocked)
+					)
+				else
+					table.insert(updatedContent, line)
+				end
+			else
+				table.insert(updatedContent, line)
+			end
 		end
 	end
-	-- Writes the updated content back to the file
+
 	file = io.open(path, "w")
 	if not file then
 		return false
@@ -277,10 +197,7 @@ function drawLockedCell()
 			if t.skip ~= 1 then
 				-- Locate the mod data for this cell
 				local configName = pathMap[t.char] or t.char
-				local targetCharData = nil
-				for _, cd in ipairs(unlockConfig.chars) do
-					if cd.name == configName then targetCharData = cd; break end
-				end
+				local targetCharData = unlockConfig[configName]
 				local c, r = col - 1, row - 1
 				-- Pos
 				local bgX = motif.select_info.pos[1] + t.x
@@ -289,7 +206,10 @@ function drawLockedCell()
 				local pY = bgY + motif.select_info.portrait.offset[2]
 
 				if targetCharData then
-					if t.hidden == 2 or (targetCharData.unlockTimer or 0) < 0 then
+					local locked = not targetCharData.unlocked and not targetCharData.unlockTimer
+					local hideCell = targetCharData.hidecell == 1
+
+					if not (hideCell and locked) and (t.hidden == 2 or (targetCharData.unlockTimer or 0) < 0) then
 						-- Draw BG if showemptyboxes = 0
 						if not motif.select_info.showemptyboxes then
 							drawWithCellTransforms(motif.select_info.cell.bg.AnimData, bgX, bgY, c, r, bgDefaults)
@@ -333,93 +253,107 @@ end
 --------------------------------------------------------
 --- Hooks and command check code
 --------------------------------------------------------
-function checkcommand()
-	-- Timer
-	for _, charData in ipairs(unlockConfig.chars) do
-		-- Init anims
-		if not charAnims[charData.name] and charData.anim then
-			charAnims[charData.name] = createAnimFromID(charData.anim, charData, true)
+function checkCommand()
+	for p = 1, gameOption('Config.Players') do
+		for name, charData in pairs(unlockConfig) do
+			local locked = not charData.unlocked
+				and not (charData.unlockTimer and charData.unlockTimer > 0)
+
+			if locked then
+				commandAdd("hold_start", "/s", 1, 1)
+				commandAdd(name, charData.command, 150, 1)
+
+				local commandExecuted = commandGetState(p, name)
+				if charData.holdstart == 1 then
+					commandExecuted = commandExecuted and commandGetState(p, "hold_start")
+				end
+
+				if commandExecuted then
+					local uAnim = unlockAnims[name]
+					local duration = 0
+
+					-- Check unlockanim and get its duration
+					if uAnim then
+						animReset(uAnim)
+						animUpdate(uAnim)
+						duration = select(1, animGetLength(uAnim))
+						duration = math.floor(duration / 1.1)
+					end
+
+					if duration > 0 then
+						charData.unlockTimer = duration
+						playUnlockSound(charData)
+					else
+						charData.unlocked = true
+						main.f_unlock(true)
+						playUnlockSound(charData)
+						charData.unlockTimer = -3
+
+						if charData.storyboard ~= nil and charData.storyboard ~= "" then
+							launchStoryboard(charData.storyboard)
+						end
+
+						if charData.keep == 1 then
+							saveUnlockConfig('external/mods/unlockCmd/config.ini', unlockConfig)
+						end
+					end
+
+					start.needUpdateDrawList = true
+				end
+			end
 		end
-		if not unlockAnims[charData.name] and charData.unlockanim then
-			unlockAnims[charData.name] = createAnimFromID(charData.unlockanim, charData, true)
+	end
+end
+
+function unlockChar()
+	-- Update timers and initialize animations
+	for name, charData in pairs(unlockConfig) do
+		-- Init anims
+		if not charAnims[name] and charData.anim then
+			charAnims[name] = createAnimFromID(charData.anim, charData, true)
 		end
 
+		if not unlockAnims[name] and charData.unlockanim then
+			unlockAnims[name] = createAnimFromID(charData.unlockanim, charData, true)
+		end
+
+		-- Timer
 		if charData.unlockTimer then
 			if charData.unlockTimer > 0 then
 				charData.unlockTimer = charData.unlockTimer - 1
 				start.needUpdateDrawList = true
+
 				if charData.unlockTimer == 0 then
 					charData.unlocked = true
+
 					-- Buffer for Ikemen load default portraits
 					main.f_unlock(true)
+
 					charData.unlockTimer = -3
+
 					-- Unlock storyboard
 					if charData.storyboard ~= nil and charData.storyboard ~= "" then
 						launchStoryboard(charData.storyboard)
 					end
+
 					if charData.keep == 1 then
-						saveUnlockConfig('external/mods/unlockCmd/unlockCmdConfig.def', unlockConfig)
+						saveUnlockConfig('external/mods/unlockCmd/config.ini', unlockConfig)
 					end
 				end
+			elseif charData.unlockTimer < 0 then
 				-- Buffer
-				elseif charData.unlockTimer < 0 then
-					charData.unlockTimer = charData.unlockTimer + 1
-				-- Timer Reset
-				if charData.unlockTimer == 0 then
-					charData.unlockTimer = nil
-				end
+				charData.unlockTimer = charData.unlockTimer + 1
+			end
+
+			-- Timer Reset
+			if charData.unlockTimer == 0 then
+				charData.unlockTimer = nil
 			end
 		end
 	end
 
-	-- Check Player Inputs
-	for p = 1, gameOption('Config.Players') do
-		for _, charData in ipairs(unlockConfig.chars) do
-			
-			if charData.unlocked or (charData.unlockTimer and charData.unlockTimer > 0) then
-				goto continue
-			end
-			commandAdd("hold_start", "/s", 1, 1)
-			commandAdd(charData.name, charData.command, 150, 1)
-			
-			local commandExecuted = commandGetState(p, charData.name)
-			if charData.holdstart == 1 then
-				commandExecuted = commandExecuted and commandGetState(p, "hold_start")
-			end
-
-			if commandExecuted then
-				local uAnim = unlockAnims[charData.name]
-				local duration = 0
-				
-				-- Check unlockanim and gets its duration
-				if uAnim then
-					animReset(uAnim)
-					animUpdate(uAnim)
-					duration = select(1, animGetLength(uAnim))
-					duration = math.floor(duration / 1.1)
-				end
-
-				if duration > 0 then
-					charData.unlockTimer = duration
-					playUnlockSound(charData)
-				else
-					charData.unlocked = true
-					main.f_unlock(true)
-					playUnlockSound(charData)
-					charData.unlockTimer = -3
-					if charData.storyboard ~= nil and charData.storyboard ~= "" then
-						launchStoryboard(charData.storyboard)
-					end
-					if charData.keep == 1 then 
-						saveUnlockConfig('external/mods/unlockCmd/unlockCmdConfig.def', unlockConfig) 
-					end
-				end
-				start.needUpdateDrawList = true
-			end
-			::continue::
-		end
-	end
+	checkCommand()
 	drawLockedCell()
 end
 
-hook.add("start.f_selectScreen", "unlockchar", checkcommand)
+hook.add("start.f_selectScreen", "unlockchar", unlockChar)
